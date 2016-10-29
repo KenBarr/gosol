@@ -1,0 +1,102 @@
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+#       Sample Programs
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+
+Perhaps the quickest documentation is provided via the sample programs. See the README, but otherwise they are available in:
+
+src/direct_example/direct_example.go: the simplest non-guaranteed pub/sub example
+
+src/persistent_example/persistent_example.go: full-blown persistence example with consumer manual-ACK and publisher ACK-processing
+
+src/caching_example/caching_example.go: simple demonstration of SolCache last-value retrieval; publishes messages to the cache and retrieves them. SolCache instance must be running.
+
+
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+#       Session Lifecycle management
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+
+INIT
+    func Init(cbs *Callbacks) SESSION
+
+The Solace API must be initialized before calling any function on it. Returns a SESSION handle that must be passed into all API functions to identify the proper Solace SESSION for each call. This allows applications to open multiple independent Solace sessions.
+
+To Initialize it, pass in references to all your event-callback functions, which are always invoked asynchronously on a background Solace thread allocated in the native Solace library. You do not need to implement them all but, the available callback functions are:
+
+    type MsgHandler func(sess SESSION, msg *MsgEvent)
+    Event callback for message events; this is invoked for all message transports, Guaranteed and Direct.
+
+    type ErrHandler func(sess SESSION, err *ErrEvent)
+    Event callback for error events.
+
+    type PubHandler func(sess SESSION, pub *PubEvent)
+    Event callback for publisher events. Typically this is used to handle asynchronous message-acks from the broker when the publisher is configured to stream Guaranteed messages (rather than publish and wait for the ack synchronously like a JMS persistent publisher).
+
+    type ConHandler func(sess SESSION, con *ConEvent)
+    Event callback for connectivity events. This allows your applications to be notified when the connection is lost or restored.
+
+CONNECT/DISCONNECT
+
+After Initializing the API, a connection can be established and released via the Connect/Disconnect functions. The Connect function accepts a file containing all the desired Solace Session Properties (an example is provided in demotr.properties). For details of all possible configurable session properties see the Solace documentation.
+
+    func Connect(sess SESSION, propsfile string) int
+    - propsfile: A file containing all the desired Solace Session Properties (an example is provided in demotr.properties). For details of all possible configurable session properties see the Solace documentation.
+
+    func Disconnect(sess SESSION) int
+
+
+
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+#       Publisher management
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+
+After connecting to the Solace message broker (see Connect above), publishers can send Direct or Guaranteed messages to the broker via distinct Send functions. In both cases, message contents are send as binary attachments, the content is not modified at all. 
+
+    func SendDirect(sess SESSION, topic string, buffer unsafe.Pointer, buflen int) int
+    - topic: the topic on which to send the message (see Solace's documentation on topic definition).
+    - buffer and buflen: Serialization of the message is the responsibility of the application, which presents it's message as an unsafe pointer to a raw buffer of data with a separate parameter indicating the length of the data. See the direct_example.go sample program for details.
+
+    func SendPersistent(sess SESSION, dest string, desttype uint32, buffer unsafe.Pointer, buflen int) int
+    - dest: the destination can either be a queue (desttype must be QUEUE) or a topic (desttype must be TOPIC).
+    - desttype: An enumerated flag indicating whether the Destination field represents a QUEUE or a TOPIC.
+	- buffer/buflen: unsafe binary payload and payload length.
+
+    func SendPersistentStreaming(sess SESSION, dest string, desttype uint32, buffer unsafe.Pointer, buflen int, corrptr unsafe.Pointer, corrlen int) int
+    - dest: the destination can either be a queue (desttype must be QUEUE) or a topic (desttype must be TOPIC).
+    - desttype: An enumerated flag indicating whether the Destination field represents a QUEUE or a TOPIC.
+	- buffer/buflen: unsafe binary payload and payload length.
+    - corrprt and corrlen: For streaming publishers, each message sent will receive an asynchronous event on the PubHandler either ACKing or REJECTing the message. You can optionally pass into the SendPersistent method additional Correlation data that will be returned to you in the PubHandler callback for each message, to distinguish each acknowledged message from each other. See the persistent_example.go sample program for details.
+
+
+
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+#       Subscriber management
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+    func SubscribeTopic(sess SESSION, topic string) int
+    - topic: subscription topic for filtering messages that are published to the Solace message broker (see Solace's documentation on topic filtering). See the direct_example.go program for details.
+
+    func UnsubscribeTopic(sess SESSION, topic string) int
+    - topic: Unregisters an earlier submitted subscription topic from the Solace message broker. See the direct_example.go program for details.
+
+    func BindQueue(sess SESSION, queue string, fwdmode uint32, ackmode uint32) int
+    - queue: the named queue to bind to and consume messages. The messages will arrive in the registered MsgHandler function (see Init documentation above).
+    - fwdmode: An enumerated flag indicating whether to consume the messages under the default STORE_FWD mode or low-latency CUT_THRU mode (see Solace documentation on Cut-Through Persistence for details).
+    - ackmode: An enumerated flag indicating whether messages will be acknowledged automatically by the API (AUTO_ACK, the default mode), or whether the application will manually-acknowledge each message (MANUAL_ACK) via the AckMsg function (see below). This function can be called within the MsgHandler function (see Init documentation above). See the persistent_example.go sample program for details.
+
+    func UnbindQueue(sess SESSION, queue string) int
+    - queue: the named queue to unbind from and stop consuming messages. Any messages published to the queue will be persisted on the Solace message broker while your application is unbound from the queue. See Solace documentation for Guaranteed Messaging for details.
+
+    func AckMsg(sess SESSION, flow uint64, msgid uint64) int
+    - flow: an ID identifying which queue or endpoint the message was delivered from. When the ACK is received by the Solace message broker, the message identified by msgid (below) will be removed from that queue or endpoint.
+    - msgid: the ID of the message to ACK to the Solace message broker. When the ACK is received by the Solace message broker, the message will be removed from the queue or endpoint identified by the flow (above).
+
+
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+#       SolCache consumer 
+# - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = - 
+gosol clients can request last-known messages on Solace topics from SolCache distributed caches where available. Retrieved messages will arrive in the gosol session's MsgHandler (See Init documentation above). See SolCache documentation for cache details.
+
+    func CacheReq(sess SESSION, cache_name string, topic_sub string , request_id int) int
+    - cache_name: the top-level distributed cache to request data from. Can be local or global, if global caching is enabled.
+    - topic_sub: the topic subscription representing all messages of interest for retrieval from the cache.
+    - request_id: distinguishes each Cache Request and will be attached to messages arriving in the MsgHandler function (see Init documentation above).
+

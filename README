@@ -1,0 +1,25 @@
+gosol: Solace GO API
+
+Provides a simplified Solace API for GO programs.
+
+The API supports the following Solace messaging features:
+* Direct (non-persistent) pub/sub
+* Persistent publish with streaming acks and user-supplied correlation data
+* Persistent subscribe with configurable ack-mode and fwd-mode, and streaming ack-processing
+* SolCache queries based on topic-subscription
+
+
+SAMPLE PROGRAMS
+These are located according to GO standard build practices. E.g., source for example 'Foo' can be found in src/Foo/Foo.go, and it's compiled executable found in bin/Foo
+
+* direct_example:    Demonstrates creating a session for basic pub/sub over direct messaging
+* persistent_example:Demonstrates creating a session for persistent pub/sub with manual acknowledgement and publisher streaming ack processing
+* cache_example:     Demonstrates creating a session for direct publications and request via SolCache 
+
+
+BUILDING
+
+'make' compiles the gosol.a library and 3 sample programs.
+
+./env.sh sets GOPATH and adds '../solclient/lib' to the LD_LIBRARY_PATH (and is sourced in by ./make.sh). You must source this to successfully run the samples.
+

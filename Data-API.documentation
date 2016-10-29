@@ -1,0 +1,38 @@
+This documentation provides details for all the complex types provided by the API. For API function details, please refer to the API.documentation.
+
+// MsgEvent is passed to a registered MsgHandler callback for each Solace message-event received
+type MsgEvent  struct {
+        DestType    int      # constant: [ QUEUE or TOPIC ]
+        Destination string   # The destination to which the message was published; can be a queue name or topic
+        Flow        uint64   # Solace Flow-ID representing an established connection to a queue or endpoint
+        MsgId       uint64   # Solace ID of the message
+        Buffer      unsafe.Pointer # message payload data
+        BufLen      uint     # length of the message payload data
+        ReqId       int      # for SolCache requests, represents the request-ID submitted with the initial SolCache Request
+        Redelivered bool     # flag indicating whether the broker delivered this message before
+        Discard     bool     # flag indicating that messages prior to this one may have been lost (direct messaging only)
+}
+
+
+// ErrEvent is passed to a registered ErrHandler callback for each Solace error-event received
+type ErrEvent  struct {
+        FNName    string  # the function-name in which the error occurred
+        RetCode   int     # Solace return code 
+        RCStr     string  # String representation of the Solace return code
+        SubCode   int     # Solace sub-code
+        SCStr     string  # String representation of the Solace sub-code
+        RespCode  int     # Solace function response code (different than return code)
+        ErrStr    string  # String representation of the error
+}
+
+// PubEvent is passed to a registered PubHandler callback for each Solace publisher-event received
+type PubEvent struct {
+        Type            int            # Event type; constant: [ ACK or REJECT ]
+        CorrelationData unsafe.Pointer # Optional correlation data provided to the SendPersistent function (see API.documentation for SendPersistent)
+}
+
+// ConEvent is passed to a registered ConHandler callback for each Solace connectivity-event received
+type ConEvent struct {
+        Type      int # connectivity event type; constant [ UP, DOWN, RECONNECTING, RECONNECTED ]
+}
+
